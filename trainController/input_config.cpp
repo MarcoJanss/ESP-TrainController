@@ -16,6 +16,6 @@ std::vector<std::string> fastLedType = {"WS2812"};
 // Network
 int LISTEN_PORT = 80;
 int connectTimeout = 60;
-const char* apPassword = "default_password";
+const char* apPassword = "Ditiseentest";
 const char* deviceID = "1234-5678-9012";
 const int AP_RETRY_INTERVAL = 30000; // 30 seconds

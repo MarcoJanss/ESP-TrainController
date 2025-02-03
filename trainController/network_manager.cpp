@@ -8,6 +8,8 @@
 #include "status_led.h"
 #include <FS.h>
 #include <LittleFS.h>
+#include <ESPmDNS.h>
+
 
 namespace NetworkManager2 {
     std::vector<WiFiNetwork> savedNetworks;
@@ -137,109 +139,232 @@ namespace NetworkManager2 {
     }
 
 
-void initializeWiFi() {
-    // Initialize LittleFS
-    if (!LittleFS.begin(true)) { // Automatic format on failure
-        Serial.println("Failed to mount file system");
-        return;
-    }
+    bool initializeWiFi() {
+        // Initialize LittleFS
+        if (!LittleFS.begin(true)) {
+            Serial.println("Failed to mount LittleFS");
+            return false;
+        }
 
-    // Load stored networks
-    if (!loadNetworksFromStorage()) {
-        Serial.println("No networks loaded from storage");
-    }
+        // Load stored networks
+        if (!loadNetworksFromStorage()) {
+            Serial.println("No networks loaded from storage");
+        }
 
-    // Check if there are any stored networks
-    if (savedNetworks.empty()) {
-        Serial.println("No saved networks, starting AP mode");
-        WiFi.softAP(deviceID, apPassword);
-        WiFi.softAPsetHostname(deviceID); // Set hostname in AP mode
-        interval = 250; // Fast blinking for status LED
-        return;
-    }
+        // Check if there are saved networks
+        if (savedNetworks.empty()) {
+            Serial.println("No saved networks, starting AP mode");
+            startAPMode();
+            return false;
+        }
 
-    // Attempt to connect to the default or first available stored network
-    WiFi.mode(WIFI_STA);
-    WiFi.setHostname(deviceID); // Set hostname in station mode
+        // Attempt to connect to the default or first available stored network
+        WiFi.mode(WIFI_STA);
+        WiFi.setHostname(deviceID); // Set hostname in station mode
 
-    // Find the default network or fallback to the first stored network
-    auto defaultNetwork = std::find_if(savedNetworks.begin(), savedNetworks.end(), [](const WiFiNetwork& nw) {
-        return nw.isDefault;
-    });
-
-    const WiFiNetwork& networkToConnect = (defaultNetwork != savedNetworks.end()) ? *defaultNetwork : savedNetworks[0];
-
-    // Start connecting
-    WiFi.begin(networkToConnect.ssid.c_str(), networkToConnect.password.c_str());
-    Serial.println("Attempting to connect to WiFi: " + networkToConnect.ssid);
-
-    isBlinking = true; // Enable blinking while attempting to connect
-
-    unsigned long startAttemptTime = millis();
-    while (WiFi.status() != WL_CONNECTED && (millis() - startAttemptTime) < (connectTimeout * 1000)) {
-        delay(100);
-    }
-
-    // Check connection status
-    if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("Connected to WiFi: " + WiFi.localIP().toString());
-        isBlinking = false; // Stop blinking, solid LED
-    } else {
-        Serial.println("Failed to connect, starting AP mode");
-        WiFi.softAP(deviceID, apPassword);
-        WiFi.softAPsetHostname(deviceID); // Set hostname in AP mode
-        interval = 250; // Fast blinking for status LED
-
-        // Start WiFiManager for portal configuration
-        WiFiManager wifiManager;
-        wifiManager.setConfigPortalTimeout(connectTimeout); // Set portal timeout
-        if (wifiManager.startConfigPortal(deviceID, apPassword)) {
-            Serial.println("New network added through portal");
-
-            // Save the network from the portal into storage
-            WiFiNetwork newNetwork;
-            newNetwork.ssid = WiFi.SSID();
-            newNetwork.password = WiFi.psk();
-            newNetwork.isDefault = false; // Mark as not default initially
-
-            auto it = std::find_if(savedNetworks.begin(), savedNetworks.end(), [&](const WiFiNetwork& nw) {
-                return nw.ssid == newNetwork.ssid;
-            });
-
-            if (it != savedNetworks.end()) {
-                // Update the existing network, preserving the default flag
-                newNetwork.isDefault = it->isDefault;
-                *it = newNetwork;
-            } else {
-                // Add the new network
-                savedNetworks.push_back(newNetwork);
-            }
-
-            saveNetworksToStorage();
+        // Configure mDNS
+        if (MDNS.begin(deviceID)) { // Start mDNS with the deviceID as the hostname
+            Serial.println("mDNS responder started. Hostname: " + String(deviceID) + ".local");
+            AddToLog("mDNS responder started. Hostname: " + String(deviceID) + ".local");
         } else {
-            Serial.println("Portal timed out or failed, restarting AP mode");
+            Serial.println("Error starting mDNS responder!");
         }
 
-        // Retry Logic: Attempt to reconnect every AP_RETRY_INTERVAL seconds
-        while (true) {
-            delay(AP_RETRY_INTERVAL * 1000);
+        // Find the default network or fallback to the first stored network
+        auto defaultNetwork = std::find_if(savedNetworks.begin(), savedNetworks.end(), [](const WiFiNetwork& nw) {
+            return nw.isDefault;
+        });
 
-            WiFi.mode(WIFI_STA);
-            WiFi.begin(networkToConnect.ssid.c_str(), networkToConnect.password.c_str());
+        const WiFiNetwork& networkToConnect = (defaultNetwork != savedNetworks.end()) ? *defaultNetwork : savedNetworks[0];
 
-            startAttemptTime = millis();
-            while (WiFi.status() != WL_CONNECTED && (millis() - startAttemptTime) < (connectTimeout * 1000)) {
-                delay(100);
-            }
+        // Start connecting
+        WiFi.begin(networkToConnect.ssid.c_str(), networkToConnect.password.c_str());
+        Serial.println("Attempting to connect to WiFi: " + networkToConnect.ssid);
+        AddToLog("Attempting to connect to WiFi: " + networkToConnect.ssid);
 
-            if (WiFi.status() == WL_CONNECTED) {
-                Serial.println("Reconnected to WiFi: " + WiFi.localIP().toString());
-                isBlinking = false; // Stop blinking, solid LED
-                break; // Exit retry loop
-            }
+        unsigned long startAttemptTime = millis();
+        while (WiFi.status() != WL_CONNECTED && (millis() - startAttemptTime) < (connectTimeout * 1000)) {
+            delay(100); // Small delay to avoid excessive polling
+        }
+
+        // Check connection
+        if (WiFi.status() == WL_CONNECTED) {
+            Serial.println("Connected to WiFi: " + WiFi.localIP().toString());
+            AddToLog("Connected to WiFi: " + WiFi.localIP().toString());
+            isBlinking = false; // Stop blinking, solid LED
+            return true;
+        } else {
+            Serial.println("Failed to connect, starting AP mode");
+            AddToLog("Failed to connect, starting AP mode");
+            startAPMode();
+            return false;
         }
     }
-}
+
+    void startAPMode() {
+        WiFi.softAP(deviceID, apPassword);
+        WiFi.softAPsetHostname(deviceID);
+
+        if (MDNS.begin(deviceID)) { // Start mDNS in AP mode
+            Serial.println("mDNS responder started in AP mode. Hostname: " + String(deviceID) + ".local");
+            AddToLog("mDNS responder started in AP mode. Hostname: " + String(deviceID) + ".local");
+        } else {
+            Serial.println("Error starting mDNS responder in AP mode!");
+            AddToLog("Error starting mDNS responder in AP mode!");
+        }
+
+        Serial.println("AP Mode started. SSID: " + String(deviceID) + ", Password: " + String(apPassword));
+        interval = 250; // Fast blinking for status LED
+    }
+    
+    bool tryStoredNetworks() {
+        if (WiFi.getMode() != WIFI_AP) {
+            return false; // Not in AP mode, no need to retry
+        }
+
+        Serial.println("Attempting to reconnect to stored networks...");
+        
+        if (savedNetworks.empty()) {
+            Serial.println("No stored networks to retry.");
+            return false;
+        }
+
+        WiFi.mode(WIFI_STA); // Switch to Station mode for reconnection
+
+        // Attempt to connect to the default network first
+        auto defaultNetwork = std::find_if(savedNetworks.begin(), savedNetworks.end(), [](const WiFiNetwork& nw) {
+            return nw.isDefault;
+        });
+
+        if (defaultNetwork != savedNetworks.end()) {
+            Serial.println("Trying default network: " + defaultNetwork->ssid);
+            WiFi.begin(defaultNetwork->ssid.c_str(), defaultNetwork->password.c_str());
+        } else {
+            Serial.println("No default network, trying all stored networks...");
+            for (const auto& network : savedNetworks) {
+                Serial.println("Trying network: " + network.ssid);
+                WiFi.begin(network.ssid.c_str(), network.password.c_str());
+
+                unsigned long startAttemptTime = millis();
+                while (WiFi.status() != WL_CONNECTED && (millis() - startAttemptTime) < (connectTimeout * 1000)) {
+                    delay(100);
+                }
+
+                if (WiFi.status() == WL_CONNECTED) {
+                    Serial.println("Successfully reconnected to: " + WiFi.localIP().toString());
+                    WiFi.softAPdisconnect(true);  // Disable AP mode
+                    isBlinking = false; // Stop LED blinking
+                    return true; // Connection successful
+                }
+            }
+        }
+
+        // If still not connected, revert to AP mode
+        Serial.println("Failed to reconnect, remaining in AP mode.");
+        WiFi.softAP(deviceID, apPassword);
+        WiFi.softAPsetHostname(deviceID);
+        interval = 250; // Fast blinking for status LED
+        return false; // Connection failed
+    }
+
+
+    // void initializeWiFi() {
+    //     // Initialize LittleFS
+    //     if (!LittleFS.begin(true)) { // Automatic format on failure
+    //         Serial.println("Failed to mount file system");
+    //         return;
+    //     }
+
+    //     // Load stored networks
+    //     if (!loadNetworksFromStorage()) {
+    //         Serial.println("No networks loaded from storage");
+    //     }
+
+    //     // Check if there are any stored networks
+    //     if (savedNetworks.empty()) {
+    //         Serial.println("No saved networks, starting AP mode");
+    //         Serial.print("AP SSID: ");
+    //         Serial.println(deviceID);
+    //         Serial.print("AP Password: ");
+    //         Serial.println(apPassword);
+
+    //         // Start AP mode
+    //         if (!WiFi.softAP(deviceID, apPassword)) {
+    //             Serial.println("Failed to start AP mode");
+    //             return;
+    //         }
+
+    //         // Set AP mode hostname
+    //         if (!WiFi.softAPsetHostname(deviceID)) {
+    //             Serial.println("Failed to set AP hostname");
+    //         } else {
+    //             Serial.println("AP hostname set successfully");
+    //         }
+
+    //         interval = 250; // Fast blinking for status LED
+
+    //         // Start WiFiManager for portal configuration
+    //         WiFiManager wifiManager;
+    //         wifiManager.setConfigPortalTimeout(connectTimeout); // Set portal timeout
+    //         if (wifiManager.startConfigPortal(deviceID, apPassword)) {
+    //             Serial.println("New network added through portal");
+
+    //             // Save the network from the portal into storage
+    //             WiFiNetwork newNetwork;
+    //             newNetwork.ssid = WiFi.SSID();
+    //             newNetwork.password = WiFi.psk();
+    //             newNetwork.isDefault = false; // Mark as not default initially
+
+    //             auto it = std::find_if(savedNetworks.begin(), savedNetworks.end(), [&](const WiFiNetwork& nw) {
+    //                 return nw.ssid == newNetwork.ssid;
+    //             });
+
+    //             if (it != savedNetworks.end()) {
+    //                 // Update the existing network, preserving the default flag
+    //                 newNetwork.isDefault = it->isDefault;
+    //                 *it = newNetwork;
+    //             } else {
+    //                 // Add the new network
+    //                 savedNetworks.push_back(newNetwork);
+    //             }
+
+    //             saveNetworksToStorage();
+    //         } else {
+    //             Serial.println("Portal timed out or failed, restarting AP mode");
+    //         }
+
+    //         return; // Exit function after setting up the portal
+    //     }
+
+    //     // Attempt to connect to the default or first available stored network
+    //     WiFi.mode(WIFI_STA);
+    //     WiFi.setHostname(deviceID); // Set hostname in station mode
+
+    //     auto defaultNetwork = std::find_if(savedNetworks.begin(), savedNetworks.end(), [](const WiFiNetwork& nw) {
+    //         return nw.isDefault;
+    //     });
+
+    //     const WiFiNetwork& networkToConnect = (defaultNetwork != savedNetworks.end()) ? *defaultNetwork : savedNetworks[0];
+
+    //     WiFi.begin(networkToConnect.ssid.c_str(), networkToConnect.password.c_str());
+    //     Serial.println("Attempting to connect to WiFi: " + networkToConnect.ssid);
+
+    //     isBlinking = true; // Enable blinking while attempting to connect
+
+    //     unsigned long startAttemptTime = millis();
+    //     while (WiFi.status() != WL_CONNECTED && (millis() - startAttemptTime) < (connectTimeout * 1000)) {
+    //         delay(100);
+    //     }
+
+    //     if (WiFi.status() == WL_CONNECTED) {
+    //         Serial.println("Connected to WiFi: " + WiFi.localIP().toString());
+    //         isBlinking = false; // Stop blinking, solid LED
+    //     } else {
+    //         Serial.println("Failed to connect, restarting AP mode");
+    //         initializeWiFi(); // Retry WiFi setup
+    //     }
+    //   }
+
 
 
     String getNetworks() {

@@ -18,7 +18,9 @@ extern std::vector<WiFiNetwork> savedNetworks;  // Global storage for networks
 
 namespace NetworkManager2 {
 	  String postConnect(const String& body);
-    void initializeWiFi();
+    bool initializeWiFi();
+    bool tryStoredNetworks();
+    void startAPMode();
     String getNetworks();  // GET
     String postNetwork(const String& body);
     String deleteNetwork(const String& body);
