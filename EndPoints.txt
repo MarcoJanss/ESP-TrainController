@@ -1,0 +1,191 @@
+Endpoints Overview
+Endpoint	Method	Description
+/pinDesignation	GET	Retrieve pin designations (digital, PWM, FastLED, available, reserved).
+/pinDesignation	POST	Set pin designations, ensuring no overlap between categories.
+/pinValues	GET	Retrieve the current values of digital, PWM, and FastLED pins.
+/pinValues	POST	Update the values of digital, PWM, and FastLED pins with validation.
+/network	GET	Retrieve stored WiFi networks.
+/network	POST	Add a new WiFi network or update an existing one.
+/network	DELETE	Remove a stored WiFi network.
+/connect	POST	Temporarily connect to a specific network for this session.
+/log	GET	Retrieve the log entries with optional limit parameter.
+/test	GET	Check if the server is running.
+/ (root)	GET	Returns a welcome message (optional).
+/* (not found)	ANY	Returns a 404 error for undefined routes.
+
+
+/pinDesignation
+GET /pinDesignation
+URL
+	http://<esp-ip>/pinDesignation
+Response (Example)
+	{
+		"digitalPins": [7, 9],
+		"pwmPins": [5, 6],
+		"fastLedPins": [8],
+		"reservedPins": [0, 1, 2],
+		"availablePins": [3, 4, 5, 6, 7, 8, 9]
+	}
+POST /pinDesignation
+URL
+	http://<esp-ip>/pinDesignation
+Request (Example)
+Input:
+	{
+		"digitalPins": [7, 9],
+		"pwmPins": [5, 6],
+		"fastLedPins": [8]
+	}
+Response (Success)
+	{
+		"message": "Pin designation updated successfully"
+	}
+Response (Error - Pin Overlap)
+	{
+		"error": "Pins assigned to multiple categories",
+		"conflictingPins": [7, 8],
+		"input": {
+			"digitalPins": [7, 9],
+			"pwmPins": [5, 6, 7],  
+			"fastLedPins": [8]
+		}
+	}
+Response (Error - Invalid Pins)
+	{
+		"error": "Invalid pin assignments",
+		"invalidPins": {
+			"reserved": [2],  
+			"notAvailable": [10]
+		},
+		"availablePins": [3, 4, 5, 6, 7, 8, 9],
+		"reservedPins": [0, 1, 2]
+	}
+
+
+/pinValues
+GET /pinValues
+URL
+	http://<esp-ip>/pinValues
+Response (Example)
+	{
+		"digital": { "7": 1, "9": 0 },
+		"pwm": { "5": 50, "6": 25 },
+		"fastLed": { "8": { "r": 255, "g": 100, "b": 50 } }
+	}
+POST /pinValues
+URL
+	http://<esp-ip>/pinValues
+Request (Example)
+Input:
+	{
+		"digital": { "7": 1, "9": 0 },
+		"pwm": { "5": 50 },
+		"fastLed": { "8": { "r": 255, "g": 100, "b": 50 } }
+	}
+Response (Success)
+	{
+		"message": "Pin values updated successfully"
+	}
+Response (Error - Invalid Values)
+	{
+		"errors": [
+			"Digital pin 7 must be 0 or 1",
+			"PWM pin 5 must be between 0 and 100",
+			"FastLED pin 8 values (r, g, b) must be between 0 and 255"
+		]
+	}
+Response (Error - Wrong Pin Types)
+	{
+		"errors": [
+			"Pin 6 is not designated as a PWM pin",
+			"Pin 8 is not designated as a FastLED pin"
+		]
+	}
+
+
+/network
+GET /network
+URL
+	http://<esp-ip>/network
+Response (Example)
+	[
+		{ "ssid": "HomeWiFi", "isDefault": true },
+		{ "ssid": "OfficeWiFi", "isDefault": false }
+	]
+POST /network
+URL
+	http://<esp-ip>/network
+Request (Example)
+Input:
+	{
+		"ssid": "NewNetwork",
+		"password": "securePass",
+		"isDefault": true
+	}
+Response (Success)
+	{
+		"message": "Network added or updated successfully"
+	}
+DELETE /network
+URL
+	http://<esp-ip>/network
+Request (Example)
+Input:
+	{
+		"ssid": "OldNetwork"
+	}
+Response (Success)
+	{
+		"message": "Network deleted successfully"
+	}
+
+
+/connect
+POST /connect
+URL
+	http://<esp-ip>/connect
+Request (Example)
+Input:
+	{
+		"ssid": "GuestWiFi"
+	}
+Response (Success)
+	{
+		"message": "Connected successfully",
+		"ip": "192.168.1.150"
+	}
+Response (Error - Not Found)
+	{
+		"error": "SSID not found in stored networks"
+	}
+
+
+/log
+GET /log
+URL
+	http://<esp-ip>/log
+URL (With Limit)
+	http://<esp-ip>/log?limit=5
+Response (Example)
+	[
+		{ "timestamp": "2024-06-01T12:00:00Z", "message": "Device started" },
+		{ "timestamp": "2024-06-01T12:05:30Z", "message": "WiFi connected" }
+	]
+
+
+/test
+GET /test
+URL
+	http://<esp-ip>/test
+Response
+	Server is running
+
+
+/* (Not Found) (disabled for now)
+ANY Invalid URL
+URL
+	http://<esp-ip>/invalidRoute
+Response
+	{
+		"error": "This is not the route you're looking for.."
+	}
