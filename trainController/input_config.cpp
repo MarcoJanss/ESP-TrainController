@@ -5,8 +5,8 @@
 std::vector<int> pwmPins = {1, 2};
 std::vector<int> digitalPins = {3, 4};
 std::vector<int> fastLedPins = {5};
-std::vector<int> reservedPins = {20, 21};
-int statusLedPin = 20;
+std::vector<int> reservedPins = {7, 8, 9, 10, 20, 21};
+int statusLedPin = 7;
 std::vector<int> availablePins = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 21};
 
 // FastLED configuration

@@ -192,6 +192,7 @@ namespace NetworkManager2 {
             Serial.println("Connected to WiFi: " + WiFi.localIP().toString());
             AddToLog("Connected to WiFi: " + WiFi.localIP().toString());
             isBlinking = false; // Stop blinking, solid LED
+
             return true;
         } else {
             Serial.println("Failed to connect, starting AP mode");
@@ -266,105 +267,6 @@ namespace NetworkManager2 {
         interval = 250; // Fast blinking for status LED
         return false; // Connection failed
     }
-
-
-    // void initializeWiFi() {
-    //     // Initialize LittleFS
-    //     if (!LittleFS.begin(true)) { // Automatic format on failure
-    //         Serial.println("Failed to mount file system");
-    //         return;
-    //     }
-
-    //     // Load stored networks
-    //     if (!loadNetworksFromStorage()) {
-    //         Serial.println("No networks loaded from storage");
-    //     }
-
-    //     // Check if there are any stored networks
-    //     if (savedNetworks.empty()) {
-    //         Serial.println("No saved networks, starting AP mode");
-    //         Serial.print("AP SSID: ");
-    //         Serial.println(deviceID);
-    //         Serial.print("AP Password: ");
-    //         Serial.println(apPassword);
-
-    //         // Start AP mode
-    //         if (!WiFi.softAP(deviceID, apPassword)) {
-    //             Serial.println("Failed to start AP mode");
-    //             return;
-    //         }
-
-    //         // Set AP mode hostname
-    //         if (!WiFi.softAPsetHostname(deviceID)) {
-    //             Serial.println("Failed to set AP hostname");
-    //         } else {
-    //             Serial.println("AP hostname set successfully");
-    //         }
-
-    //         interval = 250; // Fast blinking for status LED
-
-    //         // Start WiFiManager for portal configuration
-    //         WiFiManager wifiManager;
-    //         wifiManager.setConfigPortalTimeout(connectTimeout); // Set portal timeout
-    //         if (wifiManager.startConfigPortal(deviceID, apPassword)) {
-    //             Serial.println("New network added through portal");
-
-    //             // Save the network from the portal into storage
-    //             WiFiNetwork newNetwork;
-    //             newNetwork.ssid = WiFi.SSID();
-    //             newNetwork.password = WiFi.psk();
-    //             newNetwork.isDefault = false; // Mark as not default initially
-
-    //             auto it = std::find_if(savedNetworks.begin(), savedNetworks.end(), [&](const WiFiNetwork& nw) {
-    //                 return nw.ssid == newNetwork.ssid;
-    //             });
-
-    //             if (it != savedNetworks.end()) {
-    //                 // Update the existing network, preserving the default flag
-    //                 newNetwork.isDefault = it->isDefault;
-    //                 *it = newNetwork;
-    //             } else {
-    //                 // Add the new network
-    //                 savedNetworks.push_back(newNetwork);
-    //             }
-
-    //             saveNetworksToStorage();
-    //         } else {
-    //             Serial.println("Portal timed out or failed, restarting AP mode");
-    //         }
-
-    //         return; // Exit function after setting up the portal
-    //     }
-
-    //     // Attempt to connect to the default or first available stored network
-    //     WiFi.mode(WIFI_STA);
-    //     WiFi.setHostname(deviceID); // Set hostname in station mode
-
-    //     auto defaultNetwork = std::find_if(savedNetworks.begin(), savedNetworks.end(), [](const WiFiNetwork& nw) {
-    //         return nw.isDefault;
-    //     });
-
-    //     const WiFiNetwork& networkToConnect = (defaultNetwork != savedNetworks.end()) ? *defaultNetwork : savedNetworks[0];
-
-    //     WiFi.begin(networkToConnect.ssid.c_str(), networkToConnect.password.c_str());
-    //     Serial.println("Attempting to connect to WiFi: " + networkToConnect.ssid);
-
-    //     isBlinking = true; // Enable blinking while attempting to connect
-
-    //     unsigned long startAttemptTime = millis();
-    //     while (WiFi.status() != WL_CONNECTED && (millis() - startAttemptTime) < (connectTimeout * 1000)) {
-    //         delay(100);
-    //     }
-
-    //     if (WiFi.status() == WL_CONNECTED) {
-    //         Serial.println("Connected to WiFi: " + WiFi.localIP().toString());
-    //         isBlinking = false; // Stop blinking, solid LED
-    //     } else {
-    //         Serial.println("Failed to connect, restarting AP mode");
-    //         initializeWiFi(); // Retry WiFi setup
-    //     }
-    //   }
-
 
 
     String getNetworks() {

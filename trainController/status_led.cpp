@@ -2,7 +2,7 @@
 #include <Arduino.h>
 #include "input_config.h" // Access to statusLedPin and other shared variables
 
-bool isBlinking = false;
+bool isBlinking = true;
 unsigned long previousMillis = 0;
 bool ledState = false;
 int interval = 500; // Blink interval (milliseconds)

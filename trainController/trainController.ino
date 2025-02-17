@@ -128,17 +128,20 @@ void setup() {
   
   Serial.println("Starting server...");
   server.begin();
-  Serial.println("Server started successfully.");
+  Serial.println("Server started...");
 }
 
 void loop() {
     unsigned long currentMillis = millis();
     
+    //status_led::handleBlinking();
     // Handle LED blinking
-    if (currentMillis - lastBlinkTime >= interval) {
-        lastBlinkTime = currentMillis;
-        ledState = !ledState;
-        digitalWrite(statusLedPin, ledState);
+    if (isBlinking) {
+      if (currentMillis - lastBlinkTime >= interval) {
+          lastBlinkTime = currentMillis;
+          ledState = !ledState;
+          digitalWrite(statusLedPin, ledState);
+      }
     }
 
     // Handle state transitions
@@ -148,26 +151,33 @@ void loop() {
                 Serial.println("Connected to WiFi: " + WiFi.localIP().toString());
                 currentState = CONNECTED;
                 isBlinking = false; // Stop blinking (solid LED)
+                Serial.println("isBlinking set to false");
+                digitalWrite(statusLedPin, HIGH);
             } else if (currentMillis - lastRetryTime >= connectTimeout * 1000) {
+                isBlinking = true; // Blinking (solid LED)
+                interval = 500;              
+                Serial.println("isBlinking set to true");
                 lastRetryTime = currentMillis;
                 Serial.println("Retrying WiFi connection...");
                 WiFi.reconnect();
             }
             break;
-
         case AP_MODE:
+            isBlinking = true; // Blinking (solid LED)
+            interval = 250;
             // Periodically retry stored networks
             if (currentMillis - lastRetryTime >= AP_RETRY_INTERVAL * 1000) {
                 lastRetryTime = currentMillis;
                 Serial.println("Retrying stored networks...");
                 if (NetworkManager2::tryStoredNetworks()) {
                     currentState = CONNECTED;
+                    digitalWrite(statusLedPin, HIGH);
                 }
             }
             break;
-
         case CONNECTED:
-            // No ongoing tasks in this state; add monitoring logic if needed
+            // Nothing to do
+            digitalWrite(statusLedPin, HIGH);
             break;
     }
 }

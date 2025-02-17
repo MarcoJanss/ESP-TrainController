@@ -15,6 +15,9 @@ namespace PinManager {
 
 	// Function to initialize the pins
     void initializePins() {
+    Serial.println("Initializing pins.");
+    AddToLog("Initializing pins.");
+
 		// Sort all vectors
 		std::sort(pwmPins.begin(), pwmPins.end());
 		std::sort(digitalPins.begin(), digitalPins.end());
@@ -22,7 +25,6 @@ namespace PinManager {
 		std::sort(reservedPins.begin(), reservedPins.end());
 		
         // Configure PWM pins
-        Serial.println("Size of pwmPins: " + String(pwmPins.size()));
         for (size_t i = 0; i < pwmPins.size(); i++) {
             int channel = i; // Assign a unique PWM channel
             ledcAttach(pwmPins[i], 5000, 8); // 5 kHz frequency, 8-bit resolution
@@ -47,7 +49,6 @@ namespace PinManager {
         pinMode(statusLedPin, OUTPUT);
         digitalWrite(statusLedPin, LOW); // Start with LED off
         
-
         Serial.println("Pins initialized.");
         AddToLog("Pins initialized.");
     }
@@ -67,31 +68,31 @@ namespace PinManager {
 
 	// Function to reset PinDesignation and pinValues
     void resetPins() {
-        // Clear values for pins to ensure clean state
-		// pwmPins
-        for (int pin : pwmPins) {
-            ledcWrite(pin, 0); // Reset PWM pins to 0
-        }
-		pwmPins.clear();
+      //// Clear values for pins to ensure clean state
+		  // pwmPins
+      for (int pin : pwmPins) {
+          ledcWrite(pin, 0); // Reset PWM pins to 0
+      }
+		  pwmPins.clear();
 		
-		// digitalPins
-        for (int pin : digitalPins) {
-            digitalWrite(pin, LOW); // Reset digital pins to LOW
-        }
-		digitalPins.clear();
+      // digitalPins
+      for (int pin : digitalPins) {
+          digitalWrite(pin, LOW); // Reset digital pins to LOW
+      }
+      digitalPins.clear();
 		
 		//fastLedPins
-        for (size_t i = 0; i < fastLeds.size(); ++i) {
-            fill_solid(fastLeds[i], numLeds[i], CRGB::Black); // Turn off FastLEDs
-        }
-        FastLED.show();
+    for (size_t i = 0; i < fastLeds.size(); ++i) {
+        fill_solid(fastLeds[i], numLeds[i], CRGB::Black); // Turn off FastLEDs
+    }
+    FastLED.show();
 		fastLedPins.clear();
 		fastLedType.clear();
 		numLeds.clear();
 		cleanupFastLED(); // Clean up previous FastLED setup
 		
-        Serial.println("Pins reset.");
-        AddToLog("Pins reset.");
+    Serial.println("Pins reset.");
+    AddToLog("Pins reset.");
     }
 
 
@@ -134,6 +135,9 @@ namespace PinManager {
 
   // Post pin designation
   String postPinDesignation(const String& body) {
+      Serial.println("postPinDesignation started.");
+      AddToLog("postPinDesignation started.");
+    
       DynamicJsonDocument doc(1024);
       DeserializationError error = deserializeJson(doc, body);
 
@@ -266,6 +270,8 @@ namespace PinManager {
       // Reinitialize the pins
       initializePins();  // This ensures the new pins are properly configured
       
+      Serial.println("Pin designation updated.");
+      AddToLog("Pin designation updated.");
       return R"({"message":"Pin designation updated successfully"})";
   }
 
@@ -382,7 +388,8 @@ namespace PinManager {
           serializeJson(errorDoc, errorResponse);
           return errorResponse;
       }
-
+      
+      Serial.println("Pin values updated");
       return R"({"message":"Pin values updated successfully"})";
   }
 
