@@ -17,6 +17,7 @@ namespace PinManager {
   String postPinDesignation(const String &body);
   String getPinValues();
   String postPinValues(const String &body);
+  String postPinValuesBinary(const uint8_t* buf, size_t len);
 }
 
 #endif

@@ -79,6 +79,17 @@ void setup() {
           request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
       }
   });
+  // Post binary
+  server.on("/pinValuesBinary", HTTP_POST, [](AsyncWebServerRequest *request){
+    if (request->hasParam("body", true)) {
+        String body = request->getParam("body", true)->value();
+        const uint8_t* buf = (const uint8_t*)body.c_str();
+        String response = PinManager::postPinValuesBinary(buf, body.length());
+        request->send(200, "application/json", response);
+    } else {
+        request->send(400, "application/json", R"({"error":"No body"})");
+    }
+	});
   //// network
   // Get
   server.on("/network", HTTP_GET, [](AsyncWebServerRequest* request) {
