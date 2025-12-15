@@ -1,3 +1,5 @@
 Create_outputTXT.py
 output.txt
 todo.txt
+.spyproject/
+testTools/__pycache__/
