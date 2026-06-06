@@ -1,191 +1,287 @@
 Endpoints Overview
-Endpoint	Method	Description
-/pinDesignation	GET	Retrieve pin designations (digital, PWM, FastLED, available, reserved).
-/pinDesignation	POST	Set pin designations, ensuring no overlap between categories.
-/pinValues	GET	Retrieve the current values of digital, PWM, and FastLED pins.
-/pinValues	POST	Update the values of digital, PWM, and FastLED pins with validation.
-/network	GET	Retrieve stored WiFi networks.
-/network	POST	Add a new WiFi network or update an existing one.
-/network	DELETE	Remove a stored WiFi network.
-/connect	POST	Temporarily connect to a specific network for this session.
-/log	GET	Retrieve the log entries with optional limit parameter.
-/test	GET	Check if the server is running.
-/ (root)	GET	Returns a welcome message (optional).
-/* (not found)	ANY	Returns a 404 error for undefined routes.
+
+This file describes the REST API implemented by ESP-TrainController/trainController.
+All JSON POST/DELETE endpoints expect the request data in a form field named "body".
+
+Endpoint            Method   Description
+/pinDesignation    GET      Retrieve pin designations (digital, PWM, FastLED, available, reserved).
+/pinDesignation    POST     Set pin designations, ensuring no overlap between categories.
+/pinValues         GET      Retrieve the current values of digital, PWM, and FastLED pins.
+/pinValues         POST     Update digital, PWM, and FastLED pin values using JSON.
+/pinValuesBinary   POST     Update digital, PWM, and FastLED pin values using a compact binary payload.
+/network           GET      Retrieve stored WiFi networks.
+/network           POST     Add a new WiFi network or update an existing one.
+/network           DELETE   Remove a stored WiFi network.
+/connect           POST     Temporarily connect to a specific network for this session.
+/log               GET      Retrieve the in-memory log entries.
+/test              GET      Check if the server is running.
+/* (not found)     ANY      Not currently enabled in the firmware.
 
 
 /pinDesignation
+
 GET /pinDesignation
 URL
-	http://<esp-ip>/pinDesignation
+    http://<esp-ip>/pinDesignation
 Response (Example)
-	{
-		"digitalPins": [7, 9],
-		"pwmPins": [5, 6],
-		"fastLedPins": [8],
-		"reservedPins": [0, 1, 2],
-		"availablePins": [3, 4, 5, 6, 7, 8, 9]
-	}
+    {
+        "digitalPins": [7, 9],
+        "pwmPins": [5, 6],
+        "fastLedPins": [8],
+        "reservedPins": [0, 1, 2],
+        "availablePins": [3, 4, 5, 6, 7, 8, 9]
+    }
+
 POST /pinDesignation
 URL
-	http://<esp-ip>/pinDesignation
-Request (Example)
-Input:
-	{
-		"digitalPins": [7, 9],
-		"pwmPins": [5, 6],
-		"fastLedPins": [8]
-	}
+    http://<esp-ip>/pinDesignation
+Request (form field "body")
+    {
+        "digitalPins": [7, 9],
+        "pwmPins": [5, 6],
+        "fastLedPins": [8]
+    }
 Response (Success)
-	{
-		"message": "Pin designation updated successfully"
-	}
+    {
+        "message": "Pin designation updated successfully"
+    }
+Response (Error - Invalid JSON)
+    {
+        "error": "Invalid JSON",
+        "details": "<parse error>"
+    }
 Response (Error - Pin Overlap)
-	{
-		"error": "Pins assigned to multiple categories",
-		"conflictingPins": [7, 8],
-		"input": {
-			"digitalPins": [7, 9],
-			"pwmPins": [5, 6, 7],  
-			"fastLedPins": [8]
-		}
-	}
-Response (Error - Invalid Pins)
-	{
-		"error": "Invalid pin assignments",
-		"invalidPins": {
-			"reserved": [2],  
-			"notAvailable": [10]
-		},
-		"availablePins": [3, 4, 5, 6, 7, 8, 9],
-		"reservedPins": [0, 1, 2]
-	}
+    {
+        "error": "Pins in multiple lists",
+        "duplicates": [7],
+        "input": {
+            "digitalPins": [7, 9],
+            "pwmPins": [5, 6, 7],
+            "fastLedPins": [8]
+        }
+    }
+Response (Error - Invalid or Reserved Pins)
+    {
+        "error": "Pin validation failed",
+        "invalidPins": [10],
+        "reservedConflictPins": [2],
+        "availablePins": [3, 4, 5, 6, 7, 8, 9],
+        "reservedPins": [0, 1, 2]
+    }
 
 
 /pinValues
+
 GET /pinValues
 URL
-	http://<esp-ip>/pinValues
+    http://<esp-ip>/pinValues
 Response (Example)
-	{
-		"digital": { "7": 1, "9": 0 },
-		"pwm": { "5": 50, "6": 25 },
-		"fastLed": { "8": { "r": 255, "g": 100, "b": 50 } }
-	}
+    {
+        "digitalPins": {
+            "7": 1,
+            "9": 0
+        },
+        "pwmPins": {
+            "5": 128,
+            "6": 64
+        },
+        "fastLedPins": [
+            {
+                "pin": 8,
+                "type": "WS2812",
+                "numLeds": 10,
+                "color": [255, 100, 50]
+            }
+        ]
+    }
+Notes
+    PWM values returned by GET are the raw LEDC values (0-255).
+
 POST /pinValues
 URL
-	http://<esp-ip>/pinValues
-Request (Example)
-Input:
-	{
-		"digital": { "7": 1, "9": 0 },
-		"pwm": { "5": 50 },
-		"fastLed": { "8": { "r": 255, "g": 100, "b": 50 } }
-	}
+    http://<esp-ip>/pinValues
+Request (form field "body")
+    {
+        "digital": {
+            "7": 1,
+            "9": 0
+        },
+        "pwm": {
+            "5": 50
+        },
+        "fastLed": {
+            "8": {
+                "r": 255,
+                "g": 100,
+                "b": 50
+            }
+        }
+    }
+Notes
+    Digital values must be 0 or 1.
+    PWM values must be 0-100 and are mapped to raw LEDC values 0-255.
+    FastLED color channels must be 0-255.
 Response (Success)
-	{
-		"message": "Pin values updated successfully"
-	}
-Response (Error - Invalid Values)
-	{
-		"errors": [
-			"Digital pin 7 must be 0 or 1",
-			"PWM pin 5 must be between 0 and 100",
-			"FastLED pin 8 values (r, g, b) must be between 0 and 255"
-		]
-	}
-Response (Error - Wrong Pin Types)
-	{
-		"errors": [
-			"Pin 6 is not designated as a PWM pin",
-			"Pin 8 is not designated as a FastLED pin"
-		]
-	}
+    {
+        "message": "Pins updated successfully",
+        "elapsed_us": 1234
+    }
+Response (Error - Invalid JSON)
+    {
+        "error": "Invalid JSON",
+        "details": "<parse error>"
+    }
+Response (Error - Invalid Values or Wrong Pin Types)
+    {
+        "errors": [
+            "Digital pin 7 must be 0 or 1",
+            "PWM pin 5 must be between 0 and 100",
+            "Pin 8 is not designated as FastLED"
+        ]
+    }
+
+
+/pinValuesBinary
+
+POST /pinValuesBinary
+URL
+    http://<esp-ip>/pinValuesBinary
+Request
+    Binary payload:
+        byte 0      Header, must be 0xAA
+        byte 1      Digital pin count N
+        next 2*N    Digital pin/value pairs: pin, value (0 or 1)
+        next byte   PWM pin count M
+        next 2*M    PWM pin/value pairs: pin, value (0-100)
+        next byte   FastLED pin count K
+        next 4*K    FastLED pin/color tuples: pin, red, green, blue (0-255)
+Request (Example)
+    Hex:
+        AA 02 07 01 09 00 01 05 32 01 08 FF 64 32
+    Python bytearray:
+        bytearray([0xAA, 2, 7, 1, 9, 0, 1, 5, 50, 1, 8, 255, 100, 50])
+Response (Success)
+    {
+        "message": "Pins updated successfully",
+        "elapsed_us": 1234
+    }
+Response (Error - Invalid Header)
+    {
+        "error": "Invalid header"
+    }
+Response (Error - Missing Body)
+    {
+        "error": "No body"
+    }
+Notes
+    Unknown or incorrectly designated pins are ignored by the binary endpoint.
+    If the payload ends early, the endpoint updates the complete values it received.
 
 
 /network
+
 GET /network
 URL
-	http://<esp-ip>/network
+    http://<esp-ip>/network
 Response (Example)
-	[
-		{ "ssid": "HomeWiFi", "isDefault": true },
-		{ "ssid": "OfficeWiFi", "isDefault": false }
-	]
+    [
+        {
+            "ssid": "HomeWiFi",
+            "isDefault": true
+        },
+        {
+            "ssid": "OfficeWiFi",
+            "isDefault": false
+        }
+    ]
+
 POST /network
 URL
-	http://<esp-ip>/network
-Request (Example)
-Input:
-	{
-		"ssid": "NewNetwork",
-		"password": "securePass",
-		"isDefault": true
-	}
+    http://<esp-ip>/network
+Request (form field "body")
+    {
+        "ssid": "NewNetwork",
+        "password": "securePass",
+        "isDefault": true
+    }
 Response (Success)
-	{
-		"message": "Network added or updated successfully"
-	}
+    {
+        "message": "Network added or updated successfully"
+    }
+Response (Error)
+    {
+        "error": "Invalid JSON"
+    }
+
 DELETE /network
 URL
-	http://<esp-ip>/network
-Request (Example)
-Input:
-	{
-		"ssid": "OldNetwork"
-	}
+    http://<esp-ip>/network
+Request (form field "body")
+    {
+        "ssid": "OldNetwork"
+    }
 Response (Success)
-	{
-		"message": "Network deleted successfully"
-	}
+    {
+        "message": "Network deleted successfully"
+    }
+Response (Error - Not Found)
+    {
+        "error": "Network not found"
+    }
 
 
 /connect
+
 POST /connect
 URL
-	http://<esp-ip>/connect
-Request (Example)
-Input:
-	{
-		"ssid": "GuestWiFi"
-	}
+    http://<esp-ip>/connect
+Request (form field "body")
+    {
+        "ssid": "GuestWiFi",
+        "password": "optional-for-unknown-ssid"
+    }
 Response (Success)
-	{
-		"message": "Connected successfully",
-		"ip": "192.168.1.150"
-	}
-Response (Error - Not Found)
-	{
-		"error": "SSID not found in stored networks"
-	}
+    {
+        "message": "Connected successfully",
+        "ip": "192.168.1.150"
+    }
+Response (Error)
+    {
+        "error": "Missing SSID"
+    }
+Response (Error - Unknown SSID Without Password)
+    {
+        "error": "Missing password for unknown SSID"
+    }
+Response (Error - Connection Failed)
+    {
+        "error": "Failed to connect, AP mode restarted"
+    }
 
 
 /log
+
 GET /log
 URL
-	http://<esp-ip>/log
-URL (With Limit)
-	http://<esp-ip>/log?limit=5
+    http://<esp-ip>/log
 Response (Example)
-	[
-		{ "timestamp": "2024-06-01T12:00:00Z", "message": "Device started" },
-		{ "timestamp": "2024-06-01T12:05:30Z", "message": "WiFi connected" }
-	]
+    [
+        "00:00:01: Initializing pins.",
+        "00:00:02: Pins initialized."
+    ]
+Notes
+    The current firmware does not read a limit query parameter; /log?limit=5 returns the same data as /log.
 
 
 /test
+
 GET /test
 URL
-	http://<esp-ip>/test
+    http://<esp-ip>/test
 Response
-	Server is running
+    Server is running
 
 
-/* (Not Found) (disabled for now)
-ANY Invalid URL
-URL
-	http://<esp-ip>/invalidRoute
-Response
-	{
-		"error": "This is not the route you're looking for.."
-	}
+/* (Not Found)
+
+The not-found handler is present in the source but commented out, so undefined routes use the default AsyncWebServer behavior.

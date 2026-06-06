@@ -44,6 +44,45 @@ def post_pin_values(base_url, data):
         print(f"POST /pinValues failed: {e}")
         return None
 
+def _pack_pin_values_binary(data):
+    if isinstance(data, (bytes, bytearray)):
+        return bytes(data)
+
+    payload = bytearray([0xAA])
+
+    digital_values = data.get("digital", {})
+    payload.append(len(digital_values))
+    for pin, value in digital_values.items():
+        payload.extend([int(pin), int(value)])
+
+    pwm_values = data.get("pwm", {})
+    payload.append(len(pwm_values))
+    for pin, value in pwm_values.items():
+        payload.extend([int(pin), int(value)])
+
+    fast_led_values = data.get("fastLed", {})
+    payload.append(len(fast_led_values))
+    for pin, color in fast_led_values.items():
+        payload.extend([
+            int(pin),
+            int(color.get("r", 0)),
+            int(color.get("g", 0)),
+            int(color.get("b", 0)),
+        ])
+
+    return bytes(payload)
+
+def post_pin_values_binary(base_url, data):
+    url = f"{base_url}/pinValuesBinary"
+    try:
+        payload = _pack_pin_values_binary(data)
+        response = requests.post(url, data=payload)
+        response.raise_for_status()
+        return response.json()
+    except (ValueError, TypeError, requests.exceptions.RequestException) as e:
+        print(f"POST /pinValuesBinary failed: {e}")
+        return None
+
 #### 3. Network Management
 def get_network(base_url):
     url = f"{base_url}/network"
@@ -154,6 +193,11 @@ if __name__ == "__main__":
         "fastLed": {"8": {"r": 255, "g": 100, "b": 50}}
     }
     print(post_pin_values(BASE_URL, pin_values_payload))
+    print()
+
+    # Example 2.3: Post pin values binary
+    print("Example 2.3: Post pin values binary")
+    print(post_pin_values_binary(BASE_URL, pin_values_payload))
     print()
 
     # Example 3.1: Get stored networks
